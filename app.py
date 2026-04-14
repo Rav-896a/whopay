@@ -4,23 +4,36 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 
 # 1. 連結 Google Sheets
-def init_connection():
-    # 從 Streamlit Secrets 讀取憑證
+def init_sheet():
     info = st.secrets["gcp_service_account"]
     credentials = Credentials.from_service_account_info(
         info,
         scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     )
-    return gspread.authorize(credentials)
+    client = gspread.authorize(credentials)
+    
+    try:
+        sh = client.open("聚餐記帳")
+        sheet = sh.get_worksheet(0)
+        
+        # --- 自動初始化邏輯開始 ---
+        # 檢查第一列是否有標題
+        first_row = sheet.row_values(1)
+        expected_headers = ["日期", "墊錢人", "總額", "參與者", "A", "B", "C", "D", "E", "F", "G"]
+        
+        if not first_row:
+            # 如果第一列完全空白，自動寫入標題
+            sheet.insert_row(expected_headers, 1)
+            st.toast("✅ 已自動為您初始化試算表標題列！")
+        # --- 自動初始化邏輯結束 ---
+        
+        return sheet
+    except Exception as e:
+        st.error(f"連線失敗：{e}")
+        st.stop()
 
-client = init_connection()
-# 請確保你的試算表名稱完全正確
-try:
-    sh = client.open("聚餐記帳")
-    sheet = sh.get_worksheet(0) # 抓第一個工作表
-except Exception as e:
-    st.error(f"無法開啟試算表，請檢查名稱是否正確且已共用權限。錯誤: {e}")
-    st.stop()
+# 呼叫函式
+sheet = init_sheet()
 
 # 2. 基礎設定
 friends = ["A", "B", "C", "D", "E", "F", "G"]

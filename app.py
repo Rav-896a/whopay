@@ -38,7 +38,7 @@ sheet = init_sheet()
 # 2. 基礎設定
 friends = ["A", "B", "C", "D", "E", "F", "G"]
 
-st.title("🤝 好友長期互助帳本")
+st.title("🤝 團內借貸紀錄")
 
 # 分成兩個分頁：記帳、查看餘額
 tab1, tab2 = st.tabs(["📝 新增聚餐", "📊 目前餘額與清帳建議"])

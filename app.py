@@ -110,45 +110,70 @@ st.title("🤝 團內借貸紀錄")
 tab1, tab2 = st.tabs(["📝 新增聚餐", "📊 目前餘額與清帳"])
 
 with tab1:
-    st.header("新增聚餐紀錄")
-    date = st.date_input("聚餐日期")
-    total_amount = st.number_input("總金額", min_value=0, value=0)
+    mode = st.radio("選擇紀錄類型", ["🍽️ 聚餐支出", "💸 私下還款/調帳"], horizontal=True)
     
-    # 這裡現在可以選到你剛新增的朋友了
-    payer = st.selectbox("誰先墊錢？", existing_friends, index=existing_friends.index(st.session_state.my_name))
-    attendees = st.multiselect("參與者", existing_friends, default=[], placeholder="請選擇本次參與的朋友")
+    if mode == "🍽️ 聚餐支出":
+        st.header("新增聚餐紀錄")
+        date = st.date_input("聚餐日期")
+        total_amount = st.number_input("總金額", min_value=0, value=0)
+        payer = st.selectbox("誰先墊錢？", existing_friends, index=existing_friends.index(st.session_state.my_name))
+        attendees = st.multiselect("參與者", existing_friends, default=[], placeholder="請勾選參與的朋友")
 
-    special_expenses = {}
-    if attendees:
-        with st.expander("個人額外支出 (如：加點甜點)"):
-            for p in attendees:
-                special_expenses[p] = st.number_input(f"{p} 的加點", min_value=0, value=0, key=f"add_{p}")
+        special_expenses = {}
+        if attendees:
+            with st.expander("個人額外支出 (如：加點甜點)"):
+                for p in attendees:
+                    special_expenses[p] = st.number_input(f"{p} 的加點", min_value=0, value=0, key=f"add_{p}")
 
-    if st.button("儲存這筆紀錄"):
-        if total_amount <= 0 or not attendees:
-            st.warning("請填寫金額與參與者")
-        else:
-            total_special = sum(special_expenses.values())
-            common_pool = total_amount - total_special
-            base_share = common_pool / len(attendees)
-            
-            # 重新抓取最即時的標題順序
-            latest_headers = sheet.row_values(1)
-            new_row = [str(date), payer, total_amount, ",".join(attendees)]
-            
-            for h in latest_headers[4:]:
-                net = 0
-                friend = h.strip()
-                if friend in attendees:
-                    debt = base_share + special_expenses.get(friend, 0)
-                    net = (total_amount - debt) if friend == payer else -debt
-                elif friend == payer:
-                    net = total_amount
-                new_row.append(net)
-            
-            sheet.append_row(new_row)
-            st.success("紀錄已存入 Google Sheets！")
-            st.balloons()
+        if st.button("儲存聚餐紀錄"):
+            if total_amount <= 0 or not attendees:
+                st.warning("請填寫正確金額與參與者")
+            else:
+                total_special = sum(special_expenses.values())
+                common_pool = total_amount - total_special
+                base_share = common_pool / len(attendees)
+                latest_headers = sheet.row_values(1)
+                new_row = [str(date), payer, total_amount, f"聚餐: {','.join(attendees)}"]
+                
+                for h in latest_headers[4:]:
+                    net, friend = 0, h.strip()
+                    if friend in attendees:
+                        debt = base_share + special_expenses.get(friend, 0)
+                        net = (total_amount - debt) if friend == payer else -debt
+                    elif friend == payer:
+                        net = total_amount
+                    new_row.append(net)
+                sheet.append_row(new_row)
+                st.success("聚餐紀錄已同步！")
+                st.balloons()
+
+    else:
+        st.header("💸 私下還款 / 調帳")
+        st.info("此功能用於記錄『誰給了誰錢』，不涉及新的消費支出。")
+        date = st.date_input("調帳日期")
+        from_person = st.selectbox("誰給出錢？ (付款人)", existing_friends, index=existing_friends.index(st.session_state.my_name))
+        to_person = st.selectbox("誰收到錢？ (收款人)", [f for f in existing_friends if f != from_person])
+        transfer_amount = st.number_input("轉帳金額", min_value=1, value=0)
+
+        if st.button("儲存調帳紀錄"):
+            if transfer_amount <= 0:
+                st.warning("金額必須大於 0")
+            else:
+                latest_headers = sheet.row_values(1)
+                # 在備註欄位寫清楚是誰給誰
+                new_row = [str(date), from_person, 0, f"還款: {from_person} ➡️ {to_person}"]
+                
+                for h in latest_headers[4:]:
+                    net, friend = 0, h.strip()
+                    if friend == from_person:
+                        net = transfer_amount  # 付錢的人，在帳本中金額增加 (債務減少)
+                    elif friend == to_person:
+                        net = -transfer_amount # 收錢的人，在帳本中金額減少 (債務增加)
+                    new_row.append(net)
+                
+                sheet.append_row(new_row)
+                st.success(f"已記錄：{from_person} 還給 {to_person} {transfer_amount} 元")
+                st.balloons()
 
 with tab2:
     st.header("目前債務狀況")

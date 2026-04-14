@@ -142,4 +142,6 @@ with tab2:
                 for r, r_amt in list(receivers.items()):
                     settle = min(p_amt, r_amt)
                     if settle > 0.1: # 避開浮點數微小誤差
-                        st.info(f"👉
+                        st.info(f"👉 **{p}** 應給 **{r}**： {settle:.0f} 元")
+                        p_amt -= settle
+                        receivers[r] -= settle

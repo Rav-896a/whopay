@@ -27,7 +27,7 @@ if "my_name" not in st.session_state:
 if not st.session_state.my_name:
     st.title("👋 歡迎使用聚餐帳本")
     st.write("這是你們專屬的互助空間，請先告訴我你的稱呼：")
-    user_input = st.text_input("輸入暱稱 (例如：泰智, 小明...)", placeholder="這將作為你在帳本中的身分")
+    user_input = st.text_input("輸入暱稱 (例如：歐布拉克, 豬魔大長老...)", placeholder="這將作為你在帳本中的身分")
     if st.button("進入帳本"):
         if user_input:
             st.session_state.my_name = user_input.strip()

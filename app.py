@@ -124,47 +124,64 @@ with tab1:
     if mode == "🍽️ 聚餐支出":
         st.header("新增聚餐紀錄")
         date = st.date_input("聚餐日期")
-        total_amount = st.number_input("總金額", min_value=0, value=0)
         
-        try:
-            default_payer_idx = existing_friends.index(st.session_state.my_name)
-        except ValueError:
-            default_payer_idx = 0
+        # --- 改良點 1：多人墊錢區域 ---
+        with st.expander("💳 誰付了錢？(可多人填寫)", expanded=True):
+            st.info("若只有一人付錢，在該成員欄位輸入總額即可")
+            pay_details = {}
+            # 建立多欄位輸入
+            pay_cols = st.columns(2) 
+            for i, p in enumerate(existing_friends):
+                # 交替放在左欄或右欄
+                with pay_cols[i % 2]:
+                    amt = st.number_input(f"{p} 墊了多少？", min_value=0, value=0, key=f"pay_{p}")
+                    if amt > 0:
+                        pay_details[p] = amt
             
-        payer = st.selectbox("誰先付錢？", existing_friends, index=default_payer_idx)
-        # 預設為空清單，符合你的 UX 直覺
+            total_amount = sum(pay_details.values())
+            st.metric("本次總計金額", f"{total_amount:.0f} 元")
+
+        # --- 改良點 2：參與者選擇 ---
         attendees = st.multiselect("參與者", existing_friends, default=[], placeholder="請勾選參與的朋友")
 
         special_expenses = {}
         if attendees:
-            with st.expander("個人額外支出 (平分則不填)"):
+            with st.expander("🍔 個人額外支出 (平分則不填)"):
                 for p in attendees:
-                    special_expenses[p] = st.number_input(f"{p} 的加點", min_value=0, value=0, key=f"add_{p}")
+                    special_expenses[p] = st.number_input(f"{p} 的個人加點", min_value=0, value=0, key=f"add_{p}")
 
         if st.button("儲存聚餐紀錄"):
             if total_amount <= 0 or not attendees:
-                st.warning("請完整填寫金額與參與者")
+                st.warning("請填寫金額並勾選參與者")
             else:
                 total_special = sum(special_expenses.values())
                 common_pool = total_amount - total_special
                 base_share = common_pool / len(attendees)
                 
                 latest_headers = sheet.row_values(1)
-                new_row = [str(date), payer, total_amount, f"聚餐: {','.join(attendees)}"]
                 
+                # 紀錄格式優化：顯示主要墊錢人或標註「多人墊錢」
+                payers_str = ",".join(pay_details.keys()) if pay_details else "無"
+                new_row = [str(date), payers_str, total_amount, f"聚餐: {','.join(attendees)}"]
+                
+                # --- 改良點 3：計算每個人最終的淨值 ---
                 for h in latest_headers[4:]:
-                    net, friend = 0, h.strip()
+                    friend = h.strip()
+                    # 1. 計算該付的錢 (債務)
+                    debt = 0
                     if friend in attendees:
                         debt = base_share + special_expenses.get(friend, 0)
-                        net = (total_amount - debt) if friend == payer else -debt
-                    elif friend == payer:
-                        net = total_amount
+                    
+                    # 2. 加上該員墊付的錢
+                    paid = pay_details.get(friend, 0)
+                    
+                    # 3. 淨值 = 墊付 - 應付
+                    net = paid - debt
                     new_row.append(net)
                 
                 sheet.append_row(new_row)
-                st.success("紀錄已存入！")
+                st.success(f"紀錄已存入！總額 {total_amount} 元，由 {payers_str} 共同墊付。")
                 st.balloons()
-
     else:
         st.header("💸 私下還款 / 調帳")
         date = st.date_input("調帳日期")

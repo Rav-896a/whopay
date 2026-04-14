@@ -116,7 +116,7 @@ with tab1:
     
     # 這裡現在可以選到你剛新增的朋友了
     payer = st.selectbox("誰先墊錢？", existing_friends, index=existing_friends.index(st.session_state.my_name))
-    attendees = st.multiselect("參與者", existing_friends, default=existing_friends)
+    attendees = st.multiselect("參與者", existing_friends, default=[], placeholder="請選擇本次參與的朋友")
 
     special_expenses = {}
     if attendees:

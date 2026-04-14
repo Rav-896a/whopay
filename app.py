@@ -116,7 +116,7 @@ with tab1:
         st.header("新增聚餐紀錄")
         date = st.date_input("聚餐日期")
         total_amount = st.number_input("總金額", min_value=0, value=0)
-        payer = st.selectbox("誰先墊錢？", existing_friends, index=existing_friends.index(st.session_state.my_name))
+        payer = st.selectbox("誰先付錢？", existing_friends, index=existing_friends.index(st.session_state.my_name))
         attendees = st.multiselect("參與者", existing_friends, default=[], placeholder="請勾選參與的朋友")
 
         special_expenses = {}
@@ -149,10 +149,10 @@ with tab1:
 
     else:
         st.header("💸 私下還款 / 調帳")
-        st.info("此功能用於記錄『誰給了誰錢』，不涉及新的消費支出。")
+        st.info("此功能用於記錄『單筆借還款』，不涉及新的消費支出。")
         date = st.date_input("調帳日期")
-        from_person = st.selectbox("誰給出錢？ (付款人)", existing_friends, index=existing_friends.index(st.session_state.my_name))
-        to_person = st.selectbox("誰收到錢？ (收款人)", [f for f in existing_friends if f != from_person])
+        from_person = st.selectbox("付款人", existing_friends, index=existing_friends.index(st.session_state.my_name))
+        to_person = st.selectbox("收款人", [f for f in existing_friends if f != from_person])
         transfer_amount = st.number_input("轉帳金額", min_value=1, value=1)
 
         if st.button("儲存調帳紀錄"):

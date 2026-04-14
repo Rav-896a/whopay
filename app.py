@@ -76,33 +76,21 @@ with st.sidebar:
     st.write(f"目前身分：**{st.session_state.my_name}**")
     
     if st.button("登出 / 更換身分"):
-        # 強制清除
+        # 1. 第一招：嘗試標準刪除
         cookie_manager.delete("user_nickname")
+        
+        # 2. 第二招：手動覆蓋為空 (這在大多數瀏覽器最有效)
+        cookie_manager.set("user_nickname", "", expires_at=time.time() - 3600)
+        
+        # 3. 清除當前 Session 記憶
         st.session_state.my_name = None
-        # 使用 JavaScript 強制重新載入頁面，徹底清除狀態
-        st.write('<script>window.location.reload();</script>', unsafe_allow_html=True)
+        
+        # 4. 第三招：強制前端轉址 (這會讓頁面徹底重讀)
+        st.write('<script>window.location.href = window.location.href.split("?")[0];</script>', unsafe_allow_html=True)
+        
+        st.success("正在登出...")
+        time.sleep(1)
         st.rerun()
-
-    st.divider()
-    st.header("👥 成員管理")
-    new_friend = st.text_input("新增其他朋友名單", placeholder="輸入朋友暱稱")
-    if st.button("確認新增朋友"):
-        if new_friend and new_friend.strip() not in existing_friends:
-            new_f = new_friend.strip()
-            new_col_index = len(headers) + 1
-            sheet.update_cell(1, new_col_index, new_f)
-            st.success(f"已將 {new_f} 加入成員清單！")
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.warning("名稱重複或為空")
-
-# 確保「目前使用者」一定在名單內 (防呆)
-if st.session_state.my_name not in existing_friends:
-    new_col_index = len(headers) + 1
-    sheet.update_cell(1, new_col_index, st.session_state.my_name)
-    existing_friends.append(st.session_state.my_name)
-    headers.append(st.session_state.my_name)
 
 # --- 5. 主要介面 ---
 st.title("🤝 團內借貸紀錄")

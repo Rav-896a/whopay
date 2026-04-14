@@ -16,7 +16,7 @@ def init_connection():
 client = init_connection()
 # 請確保你的試算表名稱完全正確
 try:
-    sh = client.open("好友聚餐記帳本")
+    sh = client.open("聚餐記帳")
     sheet = sh.get_worksheet(0) # 抓第一個工作表
 except Exception as e:
     st.error(f"無法開啟試算表，請檢查名稱是否正確且已共用權限。錯誤: {e}")

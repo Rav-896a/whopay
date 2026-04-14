@@ -153,7 +153,7 @@ with tab1:
         date = st.date_input("調帳日期")
         from_person = st.selectbox("誰給出錢？ (付款人)", existing_friends, index=existing_friends.index(st.session_state.my_name))
         to_person = st.selectbox("誰收到錢？ (收款人)", [f for f in existing_friends if f != from_person])
-        transfer_amount = st.number_input("轉帳金額", min_value=1, value=0)
+        transfer_amount = st.number_input("轉帳金額", min_value=1, value=1)
 
         if st.button("儲存調帳紀錄"):
             if transfer_amount <= 0:

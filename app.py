@@ -95,7 +95,7 @@ with tab1:
     if mode == "🍽️ 聚餐支出":
         st.header("新增聚餐紀錄")
         date = st.date_input("聚餐日期")
-        location = st.text_input("吃了哪間店？ (選填)", placeholder="例如：鼎泰豐、麥當勞")
+        location = st.text_input("吃了哪間店？ (選填)", placeholder="例如：金雞園、帥團")
         total_amount = st.number_input("總金額", min_value=0, value=0)
         
         payers = st.multiselect("誰付了錢？", existing_friends, default=[st.session_state.my_name])

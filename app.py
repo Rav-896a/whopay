@@ -4,7 +4,7 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 import extra_streamlit_components as stx
 import time
-from datetime import datetime, timedelta # 修正登出錯誤所需的模組
+from datetime import datetime, timedelta
 
 # 設定頁面配置
 st.set_page_config(page_title="團內借貸紀錄", layout="wide")
@@ -33,7 +33,6 @@ def get_manager():
 
 cookie_manager = get_manager()
 
-# 給予 Cookie Manager 讀取緩衝
 if "cookie_ready" not in st.session_state:
     time.sleep(0.5)
     st.session_state.cookie_ready = True
@@ -52,7 +51,6 @@ if "my_name" not in st.session_state or st.session_state.my_name is None:
     if st.button("進入帳本"):
         if user_input:
             clean_name = user_input.strip()
-            # 存入 Cookie (有效期 1 年) 與 Session
             cookie_manager.set("user_nickname", clean_name, expires_at=None)
             st.session_state.my_name = clean_name
             st.success("登入成功，正在同步數據...")
@@ -76,17 +74,11 @@ with st.sidebar:
     st.header("👤 個人設定")
     st.write(f"目前身分：**{st.session_state.my_name}**")
     
-    # 修正後的強力登出功能
     if st.button("登出 / 更換身分"):
-        # 1. 設定過期時間為昨天
         past_date = datetime.now() - timedelta(days=1)
-        # 2. 覆蓋 Cookie 為空並設為過期
         cookie_manager.set("user_nickname", "", expires_at=past_date)
-        # 3. 刪除 Cookie 紀錄
         cookie_manager.delete("user_nickname")
-        # 4. 清除 Session 記憶
         st.session_state.my_name = None
-        # 5. 強制重整頁面並移除網址參數
         st.write('<script>window.location.href = window.location.href.split("?")[0];</script>', unsafe_allow_html=True)
         st.success("安全登出中...")
         time.sleep(0.5)
@@ -106,7 +98,7 @@ with st.sidebar:
         else:
             st.warning("名稱重複或為空")
 
-# 防呆：確保當前使用者一定在名單內
+# 防呆：確保當前使用者在名單內
 if st.session_state.my_name not in existing_friends:
     new_col_index = len(headers) + 1
     sheet.update_cell(1, new_col_index, st.session_state.my_name)
@@ -124,70 +116,77 @@ with tab1:
     if mode == "🍽️ 聚餐支出":
         st.header("新增聚餐紀錄")
         date = st.date_input("聚餐日期")
+        total_amount = st.number_input("總金額", min_value=0, value=0)
         
-        # --- 改良點 1：多人墊錢區域 ---
-        with st.expander("💳 誰付了錢？(可多人填寫)", expanded=True):
-            st.info("若只有一人付錢，在該成員欄位輸入總額即可")
-            pay_details = {}
-            # 建立多欄位輸入
-            pay_cols = st.columns(2) 
-            for i, p in enumerate(existing_friends):
-                # 交替放在左欄或右欄
-                with pay_cols[i % 2]:
-                    amt = st.number_input(f"{p} 墊了多少？", min_value=0, value=0, key=f"pay_{p}")
-                    if amt > 0:
-                        pay_details[p] = amt
+        # --- 多人墊錢優化邏輯 ---
+        payers = st.multiselect(
+            "誰付了錢？", 
+            existing_friends, 
+            default=[st.session_state.my_name],
+            placeholder="請勾選墊錢的人"
+        )
+        
+        pay_details = {}
+        if len(payers) > 1:
+            st.info("💡 偵測到多人墊錢，請分配每人墊付金額：")
+            pay_cols = st.columns(len(payers))
+            temp_total = 0
+            for i, p in enumerate(payers):
+                with pay_cols[i]:
+                    amt = st.number_input(f"{p} 墊了", min_value=0, value=0, key=f"pay_val_{p}")
+                    pay_details[p] = amt
+                    temp_total += amt
             
-            total_amount = sum(pay_details.values())
-            st.metric("本次總計金額", f"{total_amount:.0f} 元")
+            if temp_total != total_amount and temp_total > 0:
+                st.warning(f"目前填寫總和 ({temp_total}) 與上方總金額 ({total_amount}) 不符！")
+        
+        elif len(payers) == 1:
+            # 單人墊錢直接自動帶入總額
+            pay_details[payers[0]] = total_amount
+            st.caption(f"✅ 系統自動設定由 **{payers[0]}** 支付全額 {total_amount} 元")
 
-        # --- 改良點 2：參與者選擇 ---
+        # 參與者選單
         attendees = st.multiselect("參與者", existing_friends, default=[], placeholder="請勾選參與的朋友")
 
         special_expenses = {}
         if attendees:
-            with st.expander("🍔 個人額外支出 (平分則不填)"):
+            with st.expander("個人額外支出 (平分則不填)"):
                 for p in attendees:
-                    special_expenses[p] = st.number_input(f"{p} 的個人加點", min_value=0, value=0, key=f"add_{p}")
+                    special_expenses[p] = st.number_input(f"{p} 的加點", min_value=0, value=0, key=f"add_{p}")
 
         if st.button("儲存聚餐紀錄"):
-            if total_amount <= 0 or not attendees:
-                st.warning("請填寫金額並勾選參與者")
+            if total_amount <= 0 or not attendees or not payers:
+                st.warning("請完整填寫金額、付款者與參與者")
+            elif len(payers) > 1 and sum(pay_details.values()) != total_amount:
+                st.error("各人墊付總和必須等於總金額！")
             else:
                 total_special = sum(special_expenses.values())
                 common_pool = total_amount - total_special
                 base_share = common_pool / len(attendees)
                 
                 latest_headers = sheet.row_values(1)
-                
-                # 紀錄格式優化：顯示主要墊錢人或標註「多人墊錢」
-                payers_str = ",".join(pay_details.keys()) if pay_details else "無"
+                payers_str = ",".join(payers)
                 new_row = [str(date), payers_str, total_amount, f"聚餐: {','.join(attendees)}"]
                 
-                # --- 改良點 3：計算每個人最終的淨值 ---
                 for h in latest_headers[4:]:
                     friend = h.strip()
-                    # 1. 計算該付的錢 (債務)
                     debt = 0
                     if friend in attendees:
                         debt = base_share + special_expenses.get(friend, 0)
                     
-                    # 2. 加上該員墊付的錢
                     paid = pay_details.get(friend, 0)
-                    
-                    # 3. 淨值 = 墊付 - 應付
                     net = paid - debt
                     new_row.append(net)
                 
                 sheet.append_row(new_row)
-                st.success(f"紀錄已存入！總額 {total_amount} 元，由 {payers_str} 共同墊付。")
+                st.success(f"紀錄已成功同步！由 {payers_str} 共同墊付。")
                 st.balloons()
+
     else:
         st.header("💸 私下還款 / 調帳")
         date = st.date_input("調帳日期")
         from_person = st.selectbox("付款人", existing_friends, index=existing_friends.index(st.session_state.my_name))
         to_person = st.selectbox("收款人", [f for f in existing_friends if f != from_person])
-        # 修正後的金額輸入，避免 MinValue 錯誤
         transfer_amount = st.number_input("轉帳金額", min_value=1, value=1)
 
         if st.button("儲存調帳紀錄"):

@@ -26,7 +26,7 @@ def init_sheet():
 
 sh, sheet = init_sheet()
 
-# --- 2. 使用者身分識別 ---
+# --- 2. 使用者身分識別 (Cookie 記憶) ---
 def get_manager():
     return stx.CookieManager()
 
@@ -95,7 +95,7 @@ with tab1:
     if mode == "🍽️ 聚餐支出":
         st.header("新增聚餐紀錄")
         date = st.date_input("聚餐日期")
-        location = st.text_input("吃了哪間店？ (選填)", placeholder="例如：金雞園、帥團")
+        location = st.text_input("吃了哪間店？ (選填)", placeholder="例如：鼎泰豐、麥當勞")
         total_amount = st.number_input("總金額", min_value=0, value=0)
         
         payers = st.multiselect("誰付了錢？", existing_friends, default=[st.session_state.my_name])
@@ -137,7 +137,6 @@ with tab1:
                 sheet.append_row(new_row)
                 st.success("紀錄已同步！")
                 st.balloons()
-                # --- 重製邏輯：等待動畫後自動重整 ---
                 time.sleep(2)
                 st.rerun()
 
@@ -158,17 +157,16 @@ with tab1:
             sheet.append_row(new_row)
             st.success("還款已記錄！")
             st.balloons()
-            # --- 重製邏輯：等待動畫後自動重整 ---
             time.sleep(2)
             st.rerun()
 
 with tab2:
-    # (餘額與歸檔邏輯保持不變)
     st.header("目前債務狀況")
     all_data = sheet.get_all_values()
     if len(all_data) <= 1:
         st.info("目前無待結帳項目")
     else:
+        # 1. 核心餘額顯示
         df = pd.DataFrame(all_data[1:], columns=all_data[0])
         balances = {f: pd.to_numeric(df[f], errors='coerce').sum() for f in existing_friends}
         
@@ -176,6 +174,7 @@ with tab2:
         for i, f in enumerate(existing_friends):
             cols[i].metric(f, f"{balances[f]:.0f}")
 
+        # 2. 清帳建議
         st.divider()
         st.subheader("💡 簡化清帳建議")
         receivers = {k: v for k, v in balances.items() if v > 0.1}
@@ -193,6 +192,29 @@ with tab2:
                         receivers[r] -= settle
                         if p_amt <= 0.1: break
 
+        # --- 3. 新功能：查閱本輪歷史紀錄 ---
+        st.divider()
+        with st.expander("🔍 查閱本輪詳細紀錄 (明細)"):
+            st.write("這是本輪所有記帳的原始資料：")
+            # 格式化表格以便閱讀
+            display_df = df.copy()
+            # 將數值欄位轉為整數顯示（美化用）
+            for f in existing_friends:
+                display_df[f] = pd.to_numeric(display_df[f], errors='coerce').fillna(0).map('{:+.0f}'.format)
+            
+            st.dataframe(
+                display_df, 
+                use_container_width=True,
+                column_config={
+                    "日期": st.column_config.TextColumn("日期"),
+                    "墊錢人": st.column_config.TextColumn("墊錢人"),
+                    "總額": st.column_config.NumberColumn("總額", format="%d 元"),
+                    "參與者": st.column_config.TextColumn("備註與參與者")
+                }
+            )
+            st.caption("註：數值前的 + 代表該筆紀錄中該成員「多付」的金額，- 代表「應付」的債務。")
+
+        # 4. 結帳歸檔
         st.divider()
         st.warning("⚠️ 注意：點擊下方按鈕後，目前的紀錄將會歸檔，並開啟新一輪的空白帳本。")
         if st.button("🔥 本輪結帳完畢，開始新紀錄"):
